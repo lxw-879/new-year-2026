@@ -143,8 +143,9 @@ class Particle {
         const glowSize = this.size * 4;
         const gradient = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, glowSize);
         const color = this.useRainbow ? `hsl(${this.hue}, 100%, 70%)` : this.color;
+        const colorFaded = this.useRainbow ? `hsla(${this.hue}, 100%, 70%, 0.4)` : this.color + '66';
         gradient.addColorStop(0, color);
-        gradient.addColorStop(0.3, color + '60');
+        gradient.addColorStop(0.3, colorFaded);
         gradient.addColorStop(1, 'transparent');
         
         ctx.beginPath();
