@@ -17,6 +17,8 @@ let showBlessing = false;
 let fireworks = [];
 let hasShown2025 = false;
 let hasShown2026 = false;
+let touchMode = false;  // 触屏模式
+let isWechat = /MicroMessenger/i.test(navigator.userAgent);
 
 // 初始化
 function init() {
@@ -105,6 +107,25 @@ function initHandTracking() {
     const video = document.getElementById('video');
     const loading = document.getElementById('loading');
     const startBtn = document.getElementById('startBtn');
+    const modeSelect = document.getElementById('modeSelect');
+    const gestureBtn = document.getElementById('gestureBtn');
+    const touchBtn = document.getElementById('touchBtn');
+    const wechatTip = document.getElementById('wechatTip');
+    
+    // 微信环境检测
+    if (isWechat) {
+        loading.style.display = 'none';
+        wechatTip.style.display = 'flex';
+        
+        // 点击任意位置可以选择触屏模式
+        wechatTip.addEventListener('click', () => {
+            wechatTip.style.display = 'none';
+            modeSelect.style.display = 'flex';
+        });
+        
+        setupModeButtons(modeSelect, gestureBtn, touchBtn, video);
+        return;
+    }
     
     const hands = new Hands({
         locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
@@ -119,14 +140,23 @@ function initHandTracking() {
     
     hands.onResults(onHandResults);
     
-    // 加载完成后显示开始按钮
+    // 加载完成后显示模式选择
     hands.initialize().then(() => {
         loading.style.display = 'none';
-        startBtn.style.display = 'block';
+        modeSelect.style.display = 'flex';
+        
+        setupModeButtons(modeSelect, gestureBtn, touchBtn, video, hands);
+    }).catch(() => {
+        loading.style.display = 'none';
+        modeSelect.style.display = 'flex';
+        setupModeButtons(modeSelect, gestureBtn, touchBtn, video);
     });
-    
-    startBtn.addEventListener('click', async () => {
-        startBtn.style.display = 'none';
+}
+
+function setupModeButtons(modeSelect, gestureBtn, touchBtn, video, hands) {
+    gestureBtn.addEventListener('click', async () => {
+        modeSelect.style.display = 'none';
+        touchMode = false;
         
         try {
             const stream = await navigator.mediaDevices.getUserMedia({
@@ -135,19 +165,83 @@ function initHandTracking() {
             video.srcObject = stream;
             await video.play();
             
-            const camera = new Camera(video, {
-                onFrame: async () => {
-                    await hands.send({ image: video });
-                },
-                width: 640,
-                height: 480
-            });
-            camera.start();
+            if (hands) {
+                const camera = new Camera(video, {
+                    onFrame: async () => {
+                        await hands.send({ image: video });
+                    },
+                    width: 640,
+                    height: 480
+                });
+                camera.start();
+            }
         } catch (err) {
             console.error('摄像头访问失败:', err);
-            document.getElementById('hint').textContent = '需要摄像头权限才能体验哦~';
+            document.getElementById('hint').textContent = '摄像头打不开，已切换到触屏模式';
+            enableTouchMode();
         }
     });
+    
+    touchBtn.addEventListener('click', () => {
+        modeSelect.style.display = 'none';
+        video.style.display = 'none';
+        enableTouchMode();
+    });
+}
+
+function enableTouchMode() {
+    touchMode = true;
+    const hint = document.getElementById('hint');
+    hint.innerHTML = '👆 触摸移动粒子<br>双击切换形状';
+    hint.style.opacity = '1';
+    
+    // 触摸事件
+    canvas.addEventListener('touchmove', (e) => {
+        e.preventDefault();
+        const touch = e.touches[0];
+        handPosition = { x: touch.clientX, y: touch.clientY };
+        hint.style.opacity = '0';
+    }, { passive: false });
+    
+    canvas.addEventListener('touchend', () => {
+        handPosition = null;
+    });
+    
+    // 双击切换形状
+    let lastTap = 0;
+    canvas.addEventListener('touchend', (e) => {
+        const now = Date.now();
+        if (now - lastTap < 300) {
+            triggerShapeChange();
+        }
+        lastTap = now;
+    });
+    
+    // 鼠标支持（电脑测试用）
+    canvas.addEventListener('mousemove', (e) => {
+        handPosition = { x: e.clientX, y: e.clientY };
+        hint.style.opacity = '0';
+    });
+    
+    canvas.addEventListener('dblclick', triggerShapeChange);
+}
+
+function triggerShapeChange() {
+    if (!hasShown2025) {
+        currentShape = '2025';
+        hasShown2025 = true;
+    } else if (!hasShown2026) {
+        currentShape = 'explode';
+        setTimeout(() => {
+            currentShape = '2026';
+            hasShown2026 = true;
+            createFireworks();
+            setTimeout(() => {
+                showBlessing = true;
+                document.getElementById('blessing').style.opacity = '1';
+            }, 1500);
+        }, 1000);
+    }
 }
 
 function onHandResults(results) {

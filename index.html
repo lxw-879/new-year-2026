@@ -120,6 +120,80 @@
         #startBtn:active {
             transform: translate(-50%, -50%) scale(0.95);
         }
+
+        #wechatTip {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 200;
+            display: none;
+            flex-direction: column;
+            justify-content: flex-start;
+            align-items: flex-end;
+            padding: 20px;
+        }
+
+        #wechatTip .arrow {
+            font-size: 50px;
+            color: #fff;
+            animation: bounce 1s ease-in-out infinite;
+        }
+
+        #wechatTip .tip-text {
+            color: #fff;
+            font-size: 18px;
+            text-align: center;
+            margin-top: 30px;
+            margin-right: 10px;
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        #modeSelect {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 50;
+            display: none;
+            flex-direction: column;
+            gap: 20px;
+            align-items: center;
+        }
+
+        #modeSelect button {
+            padding: 18px 40px;
+            font-size: 18px;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-weight: bold;
+            min-width: 200px;
+        }
+
+        #gestureBtn {
+            background: linear-gradient(135deg, #ffd700, #ffaa00);
+            color: #1a1a3e;
+            box-shadow: 0 0 30px rgba(255, 215, 0, 0.5);
+        }
+
+        #touchBtn {
+            background: linear-gradient(135deg, #4a90d9, #357abd);
+            color: #fff;
+            box-shadow: 0 0 30px rgba(74, 144, 217, 0.5);
+        }
+
+        #modeSelect p {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 14px;
+            margin: 0;
+        }
     </style>
 </head>
 <body>
@@ -129,6 +203,16 @@
     </div>
     
     <button id="startBtn">开始体验 ✨</button>
+    <div id="modeSelect">
+        <button id="gestureBtn">📷 手势互动</button>
+        <p>需要摄像头权限</p>
+        <button id="touchBtn">👆 触屏互动</button>
+        <p>用手指触摸屏幕</p>
+    </div>
+    <div id="wechatTip">
+        <div class="arrow">↗️</div>
+        <div class="tip-text">点击右上角 ⋯<br>选择「在浏览器中打开」<br>体验完整手势互动</div>
+    </div>
     <canvas id="canvas"></canvas>
     <video id="video" playsinline></video>
     <div id="hint">👋 伸出手来互动吧</div>
