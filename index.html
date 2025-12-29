@@ -5,24 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>2026 新年快乐 ✨</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            overflow: hidden;
-            background: linear-gradient(135deg, #0a0a20 0%, #1a1a3e 50%, #0d0d25 100%);
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            overflow: hidden; 
+            background: #000; 
             font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            touch-action: none;
         }
         
-        #canvas {
-            position: fixed;
-            top: 0;
-            left: 0;
-            z-index: 1;
-        }
+        #container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; }
         
         #video {
             position: fixed;
@@ -30,35 +21,37 @@
             right: 20px;
             width: 120px;
             height: 90px;
-            border-radius: 10px;
-            border: 2px solid rgba(255, 215, 0, 0.5);
+            border-radius: 12px;
+            border: 2px solid rgba(255, 215, 0, 0.4);
             z-index: 10;
             transform: scaleX(-1);
             object-fit: cover;
+            box-shadow: 0 0 20px rgba(255, 215, 0, 0.2);
         }
         
         #blessing {
             position: fixed;
-            bottom: 15%;
+            bottom: 12%;
             left: 50%;
             transform: translateX(-50%);
             color: #ffd700;
-            font-size: 24px;
+            font-size: clamp(20px, 5vw, 32px);
             text-align: center;
             z-index: 5;
             opacity: 0;
-            transition: opacity 1s ease;
-            text-shadow: 0 0 20px rgba(255, 215, 0, 0.8);
+            transition: opacity 1.5s ease;
+            text-shadow: 0 0 30px rgba(255, 215, 0, 0.8), 0 0 60px rgba(255, 215, 0, 0.4);
             pointer-events: none;
+            line-height: 1.8;
         }
         
         #hint {
             position: fixed;
-            top: 50%;
+            bottom: 25%;
             left: 50%;
-            transform: translate(-50%, -50%);
-            color: rgba(255, 255, 255, 0.8);
-            font-size: 18px;
+            transform: translateX(-50%);
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 16px;
             text-align: center;
             z-index: 5;
             animation: pulse 2s ease-in-out infinite;
@@ -66,17 +59,15 @@
         }
         
         @keyframes pulse {
-            0%, 100% { opacity: 0.6; }
+            0%, 100% { opacity: 0.5; }
             50% { opacity: 1; }
         }
         
         #loading {
             position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: #0a0a20;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: radial-gradient(ellipse at center, #1a1a3e 0%, #0a0a20 100%);
             display: flex;
             flex-direction: column;
             justify-content: center;
@@ -86,140 +77,147 @@
         }
         
         .loader {
-            width: 50px;
-            height: 50px;
-            border: 3px solid rgba(255, 215, 0, 0.3);
+            width: 60px; height: 60px;
+            border: 3px solid rgba(255, 215, 0, 0.2);
             border-top-color: #ffd700;
             border-radius: 50%;
             animation: spin 1s linear infinite;
             margin-bottom: 20px;
         }
         
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
+        @keyframes spin { to { transform: rotate(360deg); } }
 
-        #startBtn {
+        #modeSelect {
             position: fixed;
-            top: 50%;
-            left: 50%;
+            top: 50%; left: 50%;
             transform: translate(-50%, -50%);
-            padding: 20px 50px;
-            font-size: 20px;
-            background: linear-gradient(135deg, #ffd700, #ffaa00);
-            border: none;
-            border-radius: 30px;
-            color: #1a1a3e;
-            cursor: pointer;
             z-index: 50;
             display: none;
-            font-weight: bold;
-            box-shadow: 0 0 30px rgba(255, 215, 0, 0.5);
+            flex-direction: column;
+            gap: 15px;
+            align-items: center;
         }
 
-        #startBtn:active {
-            transform: translate(-50%, -50%) scale(0.95);
+        #modeSelect button {
+            padding: 16px 45px;
+            font-size: 17px;
+            border: none;
+            border-radius: 30px;
+            cursor: pointer;
+            font-weight: 600;
+            min-width: 200px;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        #modeSelect button:active { transform: scale(0.96); }
+
+        #gestureBtn {
+            background: linear-gradient(135deg, #ffd700 0%, #ff8c00 100%);
+            color: #1a1a3e;
+            box-shadow: 0 4px 30px rgba(255, 215, 0, 0.4);
+        }
+
+        #touchBtn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+            box-shadow: 0 4px 30px rgba(102, 126, 234, 0.4);
+        }
+
+        #modeSelect p {
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 13px;
+            margin: -5px 0 10px 0;
         }
 
         #wechatTip {
             position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.9);
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.95);
             z-index: 200;
             display: none;
             flex-direction: column;
-            justify-content: flex-start;
             align-items: flex-end;
-            padding: 20px;
+            padding: 20px 15px;
         }
 
         #wechatTip .arrow {
-            font-size: 50px;
-            color: #fff;
+            font-size: 40px;
             animation: bounce 1s ease-in-out infinite;
         }
 
         #wechatTip .tip-text {
             color: #fff;
-            font-size: 18px;
-            text-align: center;
-            margin-top: 30px;
-            margin-right: 10px;
+            font-size: 16px;
+            text-align: right;
+            margin-top: 15px;
+            line-height: 1.8;
+        }
+        
+        #wechatTip .skip {
+            position: absolute;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: rgba(255,255,255,0.6);
+            font-size: 14px;
+            padding: 12px 30px;
+            border: 1px solid rgba(255,255,255,0.3);
+            border-radius: 25px;
         }
 
         @keyframes bounce {
             0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-10px); }
+            50% { transform: translateY(-8px); }
         }
-
-        #modeSelect {
+        
+        #shapeIndicator {
             position: fixed;
-            top: 50%;
+            top: 20px;
             left: 50%;
-            transform: translate(-50%, -50%);
-            z-index: 50;
-            display: none;
-            flex-direction: column;
-            gap: 20px;
-            align-items: center;
-        }
-
-        #modeSelect button {
-            padding: 18px 40px;
-            font-size: 18px;
-            border: none;
-            border-radius: 25px;
-            cursor: pointer;
-            font-weight: bold;
-            min-width: 200px;
-        }
-
-        #gestureBtn {
-            background: linear-gradient(135deg, #ffd700, #ffaa00);
-            color: #1a1a3e;
-            box-shadow: 0 0 30px rgba(255, 215, 0, 0.5);
-        }
-
-        #touchBtn {
-            background: linear-gradient(135deg, #4a90d9, #357abd);
-            color: #fff;
-            box-shadow: 0 0 30px rgba(74, 144, 217, 0.5);
-        }
-
-        #modeSelect p {
-            color: rgba(255, 255, 255, 0.7);
+            transform: translateX(-50%);
+            color: rgba(255,255,255,0.6);
             font-size: 14px;
-            margin: 0;
+            z-index: 10;
+            display: none;
         }
     </style>
 </head>
 <body>
     <div id="loading">
         <div class="loader"></div>
-        <div>正在加载...</div>
+        <div>正在准备魔法...</div>
     </div>
     
-    <button id="startBtn">开始体验 ✨</button>
     <div id="modeSelect">
         <button id="gestureBtn">📷 手势互动</button>
-        <p>需要摄像头权限</p>
+        <p>用手掌控制粒子</p>
         <button id="touchBtn">👆 触屏互动</button>
         <p>用手指触摸屏幕</p>
     </div>
+    
     <div id="wechatTip">
         <div class="arrow">↗️</div>
-        <div class="tip-text">点击右上角 ⋯<br>选择「在浏览器中打开」<br>体验完整手势互动</div>
+        <div class="tip-text">点击右上角 ⋯<br>选择「在浏览器中打开」<br>体验完整效果</div>
+        <div class="skip">或点击此处使用触屏模式</div>
     </div>
-    <canvas id="canvas"></canvas>
-    <video id="video" playsinline></video>
-    <div id="hint">👋 伸出手来互动吧</div>
-    <div id="blessing">🎆 新年快乐<br>愿你 2026 闪闪发光 ✨</div>
+    
+    <div id="container"></div>
+    <video id="video" playsinline autoplay muted></video>
+    <div id="shapeIndicator"></div>
+    <div id="hint">👆 触摸屏幕 或 伸出手掌</div>
+    <div id="blessing">✨ 新年快乐 ✨<br>愿你 2026 闪闪发光</div>
 
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
-    <script src="script.js"></script>
+    <script type="module" src="script.js"></script>
 </body>
 </html>

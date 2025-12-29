@@ -1,162 +1,328 @@
-// 粒子系统配置
+import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+// ============ 配置 ============
 const CONFIG = {
-    particleCount: 500,  // 减少粒子数量，提升性能
-    colors: ['#ffd700', '#ffec8b', '#fff8dc', '#ffa500', '#ff6347'],
-    transitionSpeed: 0.08,  // 加快过渡速度
-    floatSpeed: 0.5
+    particleCount: 3000,
+    colors: [0xffd700, 0xffec8b, 0xffa500, 0xff6347, 0xffffff],
+    bloomStrength: 1.5,
+    bloomRadius: 0.4,
+    bloomThreshold: 0.2
 };
 
-// 全局变量
-let canvas, ctx;
-let particles = [];
+// ============ 全局变量 ============
+let scene, camera, renderer, composer;
+let particles, particlePositions, particleColors, particleTargets;
 let handPosition = null;
-let isFist = false;
-let currentShape = 'float'; // float, 2025, 2026
+let currentShape = 'float';
 let shapeProgress = 0;
-let showBlessing = false;
-let fireworks = [];
+let touchMode = false;
 let hasShown2025 = false;
 let hasShown2026 = false;
-let touchMode = false;  // 触屏模式
+let clock = new THREE.Clock();
 let isWechat = /MicroMessenger/i.test(navigator.userAgent);
 
-// 初始化
-function init() {
-    canvas = document.getElementById('canvas');
-    ctx = canvas.getContext('2d');
-    resizeCanvas();
-    window.addEventListener('resize', resizeCanvas);
+// ============ 初始化 Three.js ============
+function initThree() {
+    const container = document.getElementById('container');
     
-    // 创建粒子
+    // 场景
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x050510);
+    scene.fog = new THREE.FogExp2(0x050510, 0.0008);
+    
+    // 相机
+    camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 1, 2000);
+    camera.position.z = 500;
+    
+    // 渲染器
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    container.appendChild(renderer.domElement);
+    
+    // 后期处理 - Bloom 发光效果
+    composer = new EffectComposer(renderer);
+    composer.addPass(new RenderPass(scene, camera));
+    
+    const bloomPass = new UnrealBloomPass(
+        new THREE.Vector2(window.innerWidth, window.innerHeight),
+        CONFIG.bloomStrength,
+        CONFIG.bloomRadius,
+        CONFIG.bloomThreshold
+    );
+    composer.addPass(bloomPass);
+    
+    // 创建粒子系统
+    createParticles();
+    
+    // 添加背景星星
+    createStars();
+    
+    // 窗口大小调整
+    window.addEventListener('resize', onWindowResize);
+}
+
+// ============ 创建粒子 ============
+function createParticles() {
+    const geometry = new THREE.BufferGeometry();
+    particlePositions = new Float32Array(CONFIG.particleCount * 3);
+    particleColors = new Float32Array(CONFIG.particleCount * 3);
+    particleTargets = new Float32Array(CONFIG.particleCount * 3);
+    
+    const color = new THREE.Color();
+    
     for (let i = 0; i < CONFIG.particleCount; i++) {
-        particles.push(createParticle());
+        const i3 = i * 3;
+        
+        // 初始位置 - 球形分布
+        const radius = 300 + Math.random() * 200;
+        const theta = Math.random() * Math.PI * 2;
+        const phi = Math.acos(2 * Math.random() - 1);
+        
+        particlePositions[i3] = radius * Math.sin(phi) * Math.cos(theta);
+        particlePositions[i3 + 1] = radius * Math.sin(phi) * Math.sin(theta);
+        particlePositions[i3 + 2] = radius * Math.cos(phi);
+        
+        // 颜色
+        color.setHex(CONFIG.colors[Math.floor(Math.random() * CONFIG.colors.length)]);
+        particleColors[i3] = color.r;
+        particleColors[i3 + 1] = color.g;
+        particleColors[i3 + 2] = color.b;
+        
+        // 目标位置初始化
+        particleTargets[i3] = particlePositions[i3];
+        particleTargets[i3 + 1] = particlePositions[i3 + 1];
+        particleTargets[i3 + 2] = particlePositions[i3 + 2];
     }
     
-    // 初始化手势识别
-    initHandTracking();
+    geometry.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
+    geometry.setAttribute('color', new THREE.BufferAttribute(particleColors, 3));
     
-    // 开始动画
-    animate();
+    // 粒子材质
+    const material = new THREE.PointsMaterial({
+        size: 4,
+        vertexColors: true,
+        transparent: true,
+        opacity: 0.9,
+        blending: THREE.AdditiveBlending,
+        sizeAttenuation: true
+    });
+    
+    particles = new THREE.Points(geometry, material);
+    scene.add(particles);
 }
 
-function resizeCanvas() {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
+// ============ 背景星星 ============
+function createStars() {
+    const starsGeometry = new THREE.BufferGeometry();
+    const starsPositions = new Float32Array(1000 * 3);
+    
+    for (let i = 0; i < 1000; i++) {
+        starsPositions[i * 3] = (Math.random() - 0.5) * 2000;
+        starsPositions[i * 3 + 1] = (Math.random() - 0.5) * 2000;
+        starsPositions[i * 3 + 2] = (Math.random() - 0.5) * 2000;
+    }
+    
+    starsGeometry.setAttribute('position', new THREE.BufferAttribute(starsPositions, 3));
+    
+    const starsMaterial = new THREE.PointsMaterial({
+        size: 1,
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.6
+    });
+    
+    const stars = new THREE.Points(starsGeometry, starsMaterial);
+    scene.add(stars);
 }
 
-function createParticle() {
-    return {
-        x: Math.random() * window.innerWidth,
-        y: Math.random() * window.innerHeight,
-        targetX: 0,
-        targetY: 0,
-        size: Math.random() * 3 + 1,
-        color: CONFIG.colors[Math.floor(Math.random() * CONFIG.colors.length)],
-        speedX: (Math.random() - 0.5) * CONFIG.floatSpeed,
-        speedY: Math.random() * CONFIG.floatSpeed + 0.2,
-        alpha: Math.random() * 0.5 + 0.5,
-        trail: []
+// ============ 生成数字形状的点 ============
+function getNumberTargets(numStr) {
+    const targets = [];
+    const digitWidth = 80;
+    const totalWidth = numStr.length * digitWidth;
+    const startX = -totalWidth / 2 + digitWidth / 2;
+    
+    const patterns = {
+        '2': [[1,1,1],[0,0,1],[1,1,1],[1,0,0],[1,1,1]],
+        '0': [[1,1,1],[1,0,1],[1,0,1],[1,0,1],[1,1,1]],
+        '5': [[1,1,1],[1,0,0],[1,1,1],[0,0,1],[1,1,1]],
+        '6': [[1,1,1],[1,0,0],[1,1,1],[1,0,1],[1,1,1]]
     };
-}
-
-// 获取数字形状的点位
-function getNumberPoints(num, offsetX = 0) {
-    const points = [];
-    const str = num.toString();
-    const charWidth = 80;
-    const startX = (window.innerWidth - str.length * charWidth) / 2;
-    const startY = window.innerHeight / 2 - 60;
     
-    const digitPatterns = {
-        '2': [
-            [1,1,1], [0,0,1], [1,1,1], [1,0,0], [1,1,1]
-        ],
-        '0': [
-            [1,1,1], [1,0,1], [1,0,1], [1,0,1], [1,1,1]
-        ],
-        '5': [
-            [1,1,1], [1,0,0], [1,1,1], [0,0,1], [1,1,1]
-        ],
-        '6': [
-            [1,1,1], [1,0,0], [1,1,1], [1,0,1], [1,1,1]
-        ]
-    };
-    
-    for (let c = 0; c < str.length; c++) {
-        const pattern = digitPatterns[str[c]];
+    for (let c = 0; c < numStr.length; c++) {
+        const pattern = patterns[numStr[c]];
         if (!pattern) continue;
         
-        for (let row = 0; row < pattern.length; row++) {
-            for (let col = 0; col < pattern[row].length; col++) {
+        for (let row = 0; row < 5; row++) {
+            for (let col = 0; col < 3; col++) {
                 if (pattern[row][col]) {
-                    for (let i = 0; i < 8; i++) {
-                        points.push({
-                            x: startX + c * charWidth + col * 25 + Math.random() * 15 + offsetX,
-                            y: startY + row * 25 + Math.random() * 15
+                    // 每个格子多个粒子
+                    for (let n = 0; n < 15; n++) {
+                        targets.push({
+                            x: startX + c * digitWidth + (col - 1) * 25 + (Math.random() - 0.5) * 20,
+                            y: (2 - row) * 25 + (Math.random() - 0.5) * 20,
+                            z: (Math.random() - 0.5) * 30
                         });
                     }
                 }
             }
         }
     }
-    return points;
+    return targets;
 }
 
-// 手势识别初始化
+// ============ 更新粒子目标位置 ============
+function updateTargets(shape) {
+    let targets;
+    
+    if (shape === '2025') {
+        targets = getNumberTargets('2025');
+    } else if (shape === '2026') {
+        targets = getNumberTargets('2026');
+    } else {
+        targets = null;
+    }
+    
+    for (let i = 0; i < CONFIG.particleCount; i++) {
+        const i3 = i * 3;
+        
+        if (targets && targets.length > 0) {
+            const t = targets[i % targets.length];
+            particleTargets[i3] = t.x;
+            particleTargets[i3 + 1] = t.y;
+            particleTargets[i3 + 2] = t.z;
+        } else {
+            // 回到随机漂浮
+            const radius = 200 + Math.random() * 150;
+            const theta = Math.random() * Math.PI * 2;
+            const phi = Math.acos(2 * Math.random() - 1);
+            particleTargets[i3] = radius * Math.sin(phi) * Math.cos(theta);
+            particleTargets[i3 + 1] = radius * Math.sin(phi) * Math.sin(theta);
+            particleTargets[i3 + 2] = radius * Math.cos(phi);
+        }
+    }
+}
+
+// ============ 动画循环 ============
+function animate() {
+    requestAnimationFrame(animate);
+    
+    const delta = clock.getDelta();
+    const time = clock.getElapsedTime();
+    
+    // 更新粒子位置
+    const positions = particles.geometry.attributes.position.array;
+    
+    for (let i = 0; i < CONFIG.particleCount; i++) {
+        const i3 = i * 3;
+        
+        if (currentShape === 'explode') {
+            // 爆炸效果
+            positions[i3] += (Math.random() - 0.5) * 15;
+            positions[i3 + 1] += (Math.random() - 0.5) * 15;
+            positions[i3 + 2] += (Math.random() - 0.5) * 15;
+        } else if (currentShape === '2025' || currentShape === '2026') {
+            // 向目标移动
+            positions[i3] += (particleTargets[i3] - positions[i3]) * 0.08;
+            positions[i3 + 1] += (particleTargets[i3 + 1] - positions[i3 + 1]) * 0.08;
+            positions[i3 + 2] += (particleTargets[i3 + 2] - positions[i3 + 2]) * 0.08;
+        } else {
+            // 自由漂浮 + 手势吸引
+            positions[i3] += Math.sin(time + i * 0.01) * 0.3;
+            positions[i3 + 1] += Math.cos(time + i * 0.01) * 0.3;
+            
+            if (handPosition) {
+                const dx = handPosition.x - positions[i3];
+                const dy = handPosition.y - positions[i3 + 1];
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                
+                if (dist < 200) {
+                    const force = (200 - dist) / 200 * 2;
+                    positions[i3] += dx * 0.02 * force;
+                    positions[i3 + 1] += dy * 0.02 * force;
+                }
+            }
+        }
+    }
+    
+    particles.geometry.attributes.position.needsUpdate = true;
+    
+    // 轻微旋转
+    particles.rotation.y += 0.001;
+    
+    composer.render();
+}
+
+// ============ 窗口调整 ============
+function onWindowResize() {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    composer.setSize(window.innerWidth, window.innerHeight);
+}
+
+// ============ 形状切换 ============
+function triggerShapeChange() {
+    if (!hasShown2025) {
+        currentShape = '2025';
+        updateTargets('2025');
+        hasShown2025 = true;
+        showIndicator('2025 → 再次点击');
+    } else if (!hasShown2026) {
+        currentShape = 'explode';
+        showIndicator('告别 2025...');
+        
+        setTimeout(() => {
+            currentShape = '2026';
+            updateTargets('2026');
+            hasShown2026 = true;
+            showIndicator('');
+            
+            setTimeout(() => {
+                document.getElementById('blessing').style.opacity = '1';
+            }, 1500);
+        }, 1200);
+    }
+}
+
+function showIndicator(text) {
+    const indicator = document.getElementById('shapeIndicator');
+    indicator.textContent = text;
+    indicator.style.display = text ? 'block' : 'none';
+}
+
+// ============ 手势识别 ============
 function initHandTracking() {
     const video = document.getElementById('video');
     const loading = document.getElementById('loading');
-    const startBtn = document.getElementById('startBtn');
     const modeSelect = document.getElementById('modeSelect');
-    const gestureBtn = document.getElementById('gestureBtn');
-    const touchBtn = document.getElementById('touchBtn');
     const wechatTip = document.getElementById('wechatTip');
     
-    // 微信环境检测
+    // 微信检测
     if (isWechat) {
         loading.style.display = 'none';
         wechatTip.style.display = 'flex';
         
-        // 点击任意位置可以选择触屏模式
-        wechatTip.addEventListener('click', () => {
+        wechatTip.querySelector('.skip').addEventListener('click', () => {
             wechatTip.style.display = 'none';
-            modeSelect.style.display = 'flex';
+            video.style.display = 'none';
+            enableTouchMode();
         });
-        
-        setupModeButtons(modeSelect, gestureBtn, touchBtn, video);
         return;
     }
     
-    const hands = new Hands({
-        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
-    });
+    // 直接显示模式选择，不等待 MediaPipe 加载
+    loading.style.display = 'none';
+    modeSelect.style.display = 'flex';
     
-    hands.setOptions({
-        maxNumHands: 1,
-        modelComplexity: 0,  // 降低复杂度，提升速度
-        minDetectionConfidence: 0.5,
-        minTrackingConfidence: 0.3
-    });
-    
-    hands.onResults(onHandResults);
-    
-    // 加载完成后显示模式选择
-    hands.initialize().then(() => {
-        loading.style.display = 'none';
-        modeSelect.style.display = 'flex';
-        
-        setupModeButtons(modeSelect, gestureBtn, touchBtn, video, hands);
-    }).catch(() => {
-        loading.style.display = 'none';
-        modeSelect.style.display = 'flex';
-        setupModeButtons(modeSelect, gestureBtn, touchBtn, video);
-    });
-}
-
-function setupModeButtons(modeSelect, gestureBtn, touchBtn, video, hands) {
-    gestureBtn.addEventListener('click', async () => {
+    document.getElementById('gestureBtn').addEventListener('click', async () => {
         modeSelect.style.display = 'none';
-        touchMode = false;
+        loading.style.display = 'flex';
+        loading.querySelector('div:last-child').textContent = '正在启动摄像头...';
         
         try {
             const stream = await navigator.mediaDevices.getUserMedia({
@@ -165,99 +331,58 @@ function setupModeButtons(modeSelect, gestureBtn, touchBtn, video, hands) {
             video.srcObject = stream;
             await video.play();
             
-            if (hands) {
-                const camera = new Camera(video, {
-                    onFrame: async () => {
-                        await hands.send({ image: video });
-                    },
-                    width: 640,
-                    height: 480
-                });
-                camera.start();
-            }
+            // 初始化 MediaPipe
+            const hands = new Hands({
+                locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+            });
+            
+            hands.setOptions({
+                maxNumHands: 1,
+                modelComplexity: 0,
+                minDetectionConfidence: 0.5,
+                minTrackingConfidence: 0.3
+            });
+            
+            hands.onResults(onHandResults);
+            
+            const camera = new Camera(video, {
+                onFrame: async () => await hands.send({ image: video }),
+                width: 640,
+                height: 480
+            });
+            
+            loading.style.display = 'none';
+            camera.start();
+            
         } catch (err) {
-            console.error('摄像头访问失败:', err);
-            document.getElementById('hint').textContent = '摄像头打不开，已切换到触屏模式';
+            console.error('摄像头失败:', err);
+            loading.style.display = 'none';
+            video.style.display = 'none';
             enableTouchMode();
         }
     });
     
-    touchBtn.addEventListener('click', () => {
+    document.getElementById('touchBtn').addEventListener('click', () => {
         modeSelect.style.display = 'none';
         video.style.display = 'none';
         enableTouchMode();
     });
 }
 
-function enableTouchMode() {
-    touchMode = true;
-    const hint = document.getElementById('hint');
-    hint.innerHTML = '👆 触摸移动粒子<br>双击切换形状';
-    hint.style.opacity = '1';
-    
-    // 触摸事件
-    canvas.addEventListener('touchmove', (e) => {
-        e.preventDefault();
-        const touch = e.touches[0];
-        handPosition = { x: touch.clientX, y: touch.clientY };
-        hint.style.opacity = '0';
-    }, { passive: false });
-    
-    canvas.addEventListener('touchend', () => {
-        handPosition = null;
-    });
-    
-    // 双击切换形状
-    let lastTap = 0;
-    canvas.addEventListener('touchend', (e) => {
-        const now = Date.now();
-        if (now - lastTap < 300) {
-            triggerShapeChange();
-        }
-        lastTap = now;
-    });
-    
-    // 鼠标支持（电脑测试用）
-    canvas.addEventListener('mousemove', (e) => {
-        handPosition = { x: e.clientX, y: e.clientY };
-        hint.style.opacity = '0';
-    });
-    
-    canvas.addEventListener('dblclick', triggerShapeChange);
-}
-
-function triggerShapeChange() {
-    if (!hasShown2025) {
-        currentShape = '2025';
-        hasShown2025 = true;
-    } else if (!hasShown2026) {
-        currentShape = 'explode';
-        setTimeout(() => {
-            currentShape = '2026';
-            hasShown2026 = true;
-            createFireworks();
-            setTimeout(() => {
-                showBlessing = true;
-                document.getElementById('blessing').style.opacity = '1';
-            }, 1500);
-        }, 1000);
-    }
-}
-
 function onHandResults(results) {
     const hint = document.getElementById('hint');
     
     if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-        hint.style.opacity = '0';
+        hint.style.display = 'none';
         
         const landmarks = results.multiHandLandmarks[0];
-        // 手掌中心位置 (镜像翻转)
+        // 转换到 3D 空间坐标
         handPosition = {
-            x: (1 - landmarks[9].x) * window.innerWidth,
-            y: landmarks[9].y * window.innerHeight
+            x: ((1 - landmarks[9].x) - 0.5) * 600,
+            y: (0.5 - landmarks[9].y) * 400
         };
         
-        // 检测握拳 (指尖到手掌的距离)
+        // 检测握拳
         const palmBase = landmarks[0];
         const fingerTips = [landmarks[8], landmarks[12], landmarks[16], landmarks[20]];
         let closedFingers = 0;
@@ -267,169 +392,60 @@ function onHandResults(results) {
             if (dist < 0.15) closedFingers++;
         });
         
-        const wasFist = isFist;
-        isFist = closedFingers >= 3;
-        
-        // 握拳触发形状变换
-        if (isFist && !wasFist) {
-            if (!hasShown2025) {
-                currentShape = '2025';
-                hasShown2025 = true;
-            } else if (!hasShown2026) {
-                // 2025 碎裂后变成 2026
-                setTimeout(() => {
-                    currentShape = '2026';
-                    hasShown2026 = true;
-                    createFireworks();
-                    setTimeout(() => {
-                        showBlessing = true;
-                        document.getElementById('blessing').style.opacity = '1';
-                    }, 1500);
-                }, 1000);
-                currentShape = 'explode';
-            }
+        if (closedFingers >= 3) {
+            triggerShapeChange();
         }
     } else {
-        hint.style.opacity = '1';
         handPosition = null;
     }
 }
 
-// 烟花效果
-function createFireworks() {
-    for (let i = 0; i < 5; i++) {
-        setTimeout(() => {
-            const fw = {
-                x: Math.random() * window.innerWidth,
-                y: Math.random() * window.innerHeight * 0.6,
-                particles: []
-            };
-            for (let j = 0; j < 50; j++) {
-                const angle = (Math.PI * 2 / 50) * j;
-                const speed = Math.random() * 3 + 2;
-                fw.particles.push({
-                    x: fw.x,
-                    y: fw.y,
-                    vx: Math.cos(angle) * speed,
-                    vy: Math.sin(angle) * speed,
-                    alpha: 1,
-                    color: CONFIG.colors[Math.floor(Math.random() * CONFIG.colors.length)]
-                });
-            }
-            fireworks.push(fw);
-        }, i * 300);
-    }
-}
-
-// 动画循环
-function animate() {
-    ctx.fillStyle = 'rgba(10, 10, 32, 0.15)';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+// ============ 触屏模式 ============
+function enableTouchMode() {
+    touchMode = true;
+    const hint = document.getElementById('hint');
+    hint.innerHTML = '👆 滑动控制粒子 · 双击切换形状';
+    hint.style.display = 'block';
     
-    let targetPoints = null;
-    if (currentShape === '2025') {
-        targetPoints = getNumberPoints(2025);
-        shapeProgress = Math.min(shapeProgress + CONFIG.transitionSpeed, 1);
-    } else if (currentShape === '2026') {
-        targetPoints = getNumberPoints(2026);
-        shapeProgress = Math.min(shapeProgress + CONFIG.transitionSpeed, 1);
-    } else if (currentShape === 'explode') {
-        shapeProgress = 0;
-    } else {
-        shapeProgress = Math.max(shapeProgress - CONFIG.transitionSpeed, 0);
-    }
+    const container = document.getElementById('container');
     
-    // 更新和绘制粒子
-    particles.forEach((p, i) => {
-        // 保存轨迹
-        p.trail.push({ x: p.x, y: p.y, alpha: p.alpha });
-        if (p.trail.length > 5) p.trail.shift();
-        
-        if (currentShape === 'explode') {
-            // 爆炸散开
-            p.x += (Math.random() - 0.5) * 20;
-            p.y += (Math.random() - 0.5) * 20;
-        } else if (targetPoints && shapeProgress > 0) {
-            // 向目标形状移动 - 加快响应
-            const target = targetPoints[i % targetPoints.length];
-            p.x += (target.x - p.x) * 0.15 * shapeProgress;
-            p.y += (target.y - p.y) * 0.15 * shapeProgress;
-        } else {
-            // 自由飘落
-            p.x += p.speedX;
-            p.y += p.speedY;
-            
-            // 手掌吸引 - 增强响应
-            if (handPosition) {
-                const dx = handPosition.x - p.x;
-                const dy = handPosition.y - p.y;
-                const dist = Math.hypot(dx, dy);
-                if (dist < 250) {
-                    const force = (250 - dist) / 250 * 0.2;
-                    p.x += dx * force;
-                    p.y += dy * force;
-                }
-            }
-            
-            // 边界循环
-            if (p.y > canvas.height + 10) {
-                p.y = -10;
-                p.x = Math.random() * canvas.width;
-            }
-            if (p.x < -10) p.x = canvas.width + 10;
-            if (p.x > canvas.width + 10) p.x = -10;
-        }
-        
-        // 绘制轨迹
-        p.trail.forEach((t, ti) => {
-            ctx.beginPath();
-            ctx.arc(t.x, t.y, p.size * 0.5, 0, Math.PI * 2);
-            ctx.fillStyle = p.color.replace(')', `, ${t.alpha * (ti / p.trail.length) * 0.3})`).replace('rgb', 'rgba').replace('#', '');
-            ctx.globalAlpha = t.alpha * (ti / p.trail.length) * 0.3;
-            ctx.fill();
-        });
-        
-        // 绘制粒子
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-        ctx.fillStyle = p.color;
-        ctx.globalAlpha = p.alpha;
-        ctx.shadowBlur = 10;
-        ctx.shadowColor = p.color;
-        ctx.fill();
-        ctx.shadowBlur = 0;
-        ctx.globalAlpha = 1;
+    container.addEventListener('touchmove', (e) => {
+        e.preventDefault();
+        const touch = e.touches[0];
+        handPosition = {
+            x: (touch.clientX / window.innerWidth - 0.5) * 600,
+            y: (0.5 - touch.clientY / window.innerHeight) * 400
+        };
+        hint.style.display = 'none';
+    }, { passive: false });
+    
+    container.addEventListener('touchend', () => {
+        handPosition = null;
     });
     
-    // 绘制烟花
-    fireworks.forEach((fw, fi) => {
-        fw.particles.forEach(fp => {
-            fp.x += fp.vx;
-            fp.y += fp.vy;
-            fp.vy += 0.05; // 重力
-            fp.alpha -= 0.015;
-            
-            if (fp.alpha > 0) {
-                ctx.beginPath();
-                ctx.arc(fp.x, fp.y, 3, 0, Math.PI * 2);
-                ctx.fillStyle = fp.color;
-                ctx.globalAlpha = fp.alpha;
-                ctx.shadowBlur = 15;
-                ctx.shadowColor = fp.color;
-                ctx.fill();
-                ctx.shadowBlur = 0;
-                ctx.globalAlpha = 1;
-            }
-        });
-        
-        // 移除消失的烟花
-        if (fw.particles.every(fp => fp.alpha <= 0)) {
-            fireworks.splice(fi, 1);
-        }
+    // 双击
+    let lastTap = 0;
+    container.addEventListener('touchend', () => {
+        const now = Date.now();
+        if (now - lastTap < 300) triggerShapeChange();
+        lastTap = now;
     });
     
-    requestAnimationFrame(animate);
+    // 鼠标支持
+    container.addEventListener('mousemove', (e) => {
+        handPosition = {
+            x: (e.clientX / window.innerWidth - 0.5) * 600,
+            y: (0.5 - e.clientY / window.innerHeight) * 400
+        };
+        hint.style.display = 'none';
+    });
+    
+    container.addEventListener('dblclick', triggerShapeChange);
 }
 
-// 页面加载完成后初始化
-window.addEventListener('load', init);
+// ============ 启动 ============
+window.addEventListener('load', () => {
+    initThree();
+    initHandTracking();
+    animate();
+});
