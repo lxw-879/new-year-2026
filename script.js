@@ -1,8 +1,8 @@
 // 粒子系统配置
 const CONFIG = {
-    particleCount: 800,
+    particleCount: 500,  // 减少粒子数量，提升性能
     colors: ['#ffd700', '#ffec8b', '#fff8dc', '#ffa500', '#ff6347'],
-    transitionSpeed: 0.03,
+    transitionSpeed: 0.08,  // 加快过渡速度
     floatSpeed: 0.5
 };
 
@@ -111,10 +111,10 @@ function initHandTracking() {
     });
     
     hands.setOptions({
-        maxNumHands: 2,
-        modelComplexity: 1,
-        minDetectionConfidence: 0.7,
-        minTrackingConfidence: 0.5
+        maxNumHands: 1,
+        modelComplexity: 0,  // 降低复杂度，提升速度
+        minDetectionConfidence: 0.5,
+        minTrackingConfidence: 0.3
     });
     
     hands.onResults(onHandResults);
@@ -256,22 +256,22 @@ function animate() {
             p.x += (Math.random() - 0.5) * 20;
             p.y += (Math.random() - 0.5) * 20;
         } else if (targetPoints && shapeProgress > 0) {
-            // 向目标形状移动
+            // 向目标形状移动 - 加快响应
             const target = targetPoints[i % targetPoints.length];
-            p.x += (target.x - p.x) * 0.05 * shapeProgress;
-            p.y += (target.y - p.y) * 0.05 * shapeProgress;
+            p.x += (target.x - p.x) * 0.15 * shapeProgress;
+            p.y += (target.y - p.y) * 0.15 * shapeProgress;
         } else {
             // 自由飘落
             p.x += p.speedX;
             p.y += p.speedY;
             
-            // 手掌吸引
+            // 手掌吸引 - 增强响应
             if (handPosition) {
                 const dx = handPosition.x - p.x;
                 const dy = handPosition.y - p.y;
                 const dist = Math.hypot(dx, dy);
-                if (dist < 200) {
-                    const force = (200 - dist) / 200 * 0.1;
+                if (dist < 250) {
+                    const force = (250 - dist) / 250 * 0.2;
                     p.x += dx * force;
                     p.y += dy * force;
                 }
